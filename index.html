@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bait Fish</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        canvas {
+            border: 1px solid black;
+            display: block;
+            margin: 0 auto;
+        }
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #333;
+            overflow: hidden;
+            position: relative;
+        }
+        #startScreen, #logBookScreen, #howToPlayScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        #startScreen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+        }
+        #logBookScreen, #howToPlayScreen {
+            display: none;
+        }
+        #logBookScreen {
+            width: 300px;
+            height: 500px;
+            background-color: #D2B48C;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        #howToPlayScreen {
+            width: 300px;
+            background-color: #D2B48C;
+            padding: 20px;
+            color: #3C2F2F;
+        }
+        #startButton, #bookButton, #helpButton, #backToMenuButton, #howToPlayBackButton, #resetLogButton {
+            margin: 10px;
+            padding: 15px 30px;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        #bookButton {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+        }
+        #helpButton {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+        }
+        #backButton {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        #resetLogButton {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            font-size: 16px;
+        }
+        #joystick {
+            position: absolute;
+            right: 10%;
+            bottom: 15%;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: none;
+        }
+        #joystickKnob {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: white;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.1s ease;
+        }
+        #logBookEntries div {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            text-align: left;
+            justify-content: flex-start;
+        }
+        #logBookEntries span {
+            color: #3C2F2F;
+            margin-left: 10px;
+            width: 150px;
+        }
+        #logBookEntries canvas {
+            width: 120px;
+            height: 60px;
+        }
+        #howToPlayScreen p {
+            font-size: 18px;
+            line-height: 1.5;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="360" height="640"></canvas>
+    <div id="startScreen">
+        <h1>Bait Fish</h1>
+        <button id="startButton">Start</button>
+        <button id="bookButton">Log Book</button>
+        <button id="helpButton">?</button>
+    </div>
+    <div id="logBookScreen">
+        <div id="backButton">Back</div>
+        <button id="resetLogButton">Reset</button>
+        <h2>Log Book</h2>
+        <div id="logBookEntries"></div>
+    </div>
+    <div id="howToPlayScreen">
+        <h2>How to Play</h2>
+        <p>
+            Welcome to Bait Fish! You are the blue fish swimming in a dangerous underwater world. Use the joystick on the screen to move around. Your goal is to eat as many shiners as you can to increase your score. Survive as long as possible and have fun!
+        </p>
+        <button id="howToPlayBackButton">Back</button>
+    </div>
+    <div id="joystick">
+        <div id="joystickKnob"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+        const bookButton = document.getElementById('bookButton');
+        const helpButton = document.getElementById('helpButton');
+        const logBookScreen = document.getElementById('logBookScreen');
+        const howToPlayScreen = document.getElementById('howToPlayScreen');
+        const backButton = document.getElementById('backButton');
+        const howToPlayBackButton = document.getElementById('howToPlayBackButton');
+        const resetLogButton = document.getElementById('resetLogButton');
+        const logBookEntries = document.getElementById('logBookEntries');
+        const joystick = document.getElementById('joystick');
+        const joystickKnob = document.getElementById('joystickKnob');
+
+        const minnow = {
+            x: 180,
+            y: 320,
+            radius: 12,
+            speed: 7,
+            floatSpeed: 0.15
+        };
+
+        let sunfishList = [];
+        let spottedSunfishList = [];
+        let garList = [];
+        let crabList = [];
+        let bassList = [];
+        let sharkList = [];
+        let shinerList = [];
+        let goldShinerList = [];
+        let jellyfishList = [];
+        let snapperList = [];
+        let bubbles = [];
+        let gameOver = false;
+        let gameStarted = false;
+        let joystickX = 0;
+        let joystickY = 0;
+        let timeSurvived = 0;
+        let score = 0;
+        let highScore = localStorage.getItem('highScore') ? parseInt(localStorage.getItem('highScore')) : 0;
+        let isDazed = false;
+        let dazeTimer = 0;
+        let lastGoldShinerEatenTime = -65 * 60;
+        const goldShinerCooldown = 65 * 60;
+        const initialDelay = 3 * 60;
+        const maxSunfish = 12;
+        const maxSpottedSunfish = 1;
+        const maxGars = 3;
+        const maxBass = 2;
+        const maxCrabs = 2;
+        const maxSharks = 1;
+        const maxJellyfish = 2;
+        const maxSnappers = 10;
+
+        const difficultyStages = [
+            { time: 0, sunfishInterval: 20 * 60, garInterval: 5 * 60, bassInterval: 30 * 60, crabChance: 0.001, shinerInterval: 60, shinerSpeed: 0.5, speedMultiplier: 1.0, sharkInterval: Infinity, jellyfishInterval: 40 * 60, snapperInterval: 25 * 60 },
+            { time: 90 * 60, sunfishInterval: 12 * 60, garInterval: 2.5 * 60, bassInterval: 20 * 60, crabChance: 0.003, shinerInterval: 50, shinerSpeed: 0.7, speedMultiplier: 1.1, sharkInterval: 65 * 60, jellyfishInterval: 35 * 60, snapperInterval: 20 * 60 },
+            { time: 150 * 60, sunfishInterval: 10 * 60, garInterval: 2 * 60, bassInterval: 15 * 60, crabChance: 0.004, shinerInterval: 40, shinerSpeed: 0.9, speedMultiplier: 1.2, sharkInterval: 60 * 60, jellyfishInterval: 30 * 60, snapperInterval: 15 * 60 },
+            { time: 210 * 60, sunfishInterval: 8 * 60, garInterval: 1.5 * 60, bassInterval: 12 * 60, crabChance: 0.005, shinerInterval: 30, shinerSpeed: 1.1, speedMultiplier: 1.4, sharkInterval: 55 * 60, jellyfishInterval: 25 * 60, snapperInterval: 12 * 60 },
+            { time: 270 * 60, sunfishInterval: 6 * 60, garInterval: 1 * 60, bassInterval: 10 * 60, crabChance: 0.006, shinerInterval: 20, shinerSpeed: 1.3, speedMultiplier: 1.6, sharkInterval: 50 * 60, jellyfishInterval: 20 * 60, snapperInterval: 10 * 60 }
+        ];
+
+        function getDifficultyStage() {
+            for (let i = difficultyStages.length - 1; i >= 0; i--) {
+                if (timeSurvived >= difficultyStages[i].time) return difficultyStages[i];
+            }
+            return difficultyStages[0];
+        }
+
+        let warningActive = false;
+        let warningTimer = 0;
+        let warningX = 0;
+        let warningY = 0;
+        let warningBlink = 0;
+
+        function spawnSunfish() {
+            const width = 30;
+            const height = 20;
+            const difficulty = getDifficultyStage();
+            const side = Math.random() < 0.5 ? 0 : 1;
+            let x = side === 0 ? -width : canvas.width + width;
+            let y = Math.random() * (canvas.height - height - 75);
+            let speedX = side === 0 ? (Math.random() * 2 + 0.75) * difficulty.speedMultiplier : -(Math.random() * 2 + 0.75) * difficulty.speedMultiplier;
+            let speedY = (Math.random() * 0.75 - 0.375) * difficulty.speedMultiplier;
+            return { x, y, width, height, speedX, speedY, changeDirection: Math.floor(Math.random() * 60) + 60, timeOffScreen: 0 };
+        }
+
+        function spawnSpottedSunfish() {
+            const width = 30;
+            const height = 20;
+            const difficulty = getDifficultyStage();
+            const side = Math.random() < 0.5 ? 0 : 1;
+            let x = side === 0 ? -width : canvas.width + width;
+            let y = Math.random() * (canvas.height - height - 75);
+            let speedX = side === 0 ? (Math.random() * 2.5 + 1.2) * difficulty.speedMultiplier : -(Math.random() * 2.5 + 1.2) * difficulty.speedMultiplier;
+            let speedY = (Math.random() * 0.75 - 0.375) * difficulty.speedMultiplier;
+            return { x, y, width, height, speedX, speedY, changeDirection: Math.floor(Math.random() * 60) + 30, timeOffScreen: 0 };
+        }
+
+        function spawnGar() {
+            if (score < 25) return null;
+            const width = 96;
+            const height = 24;
+            const difficulty = getDifficultyStage();
+            const side = Math.random() < 0.5 ? 0 : 1;
+            let x = side === 0 ? -width : canvas.width + width;
+            let y = Math.random() * (canvas.height - 75 - height);
+            let speedX = side === 0 ? (Math.random() * 1.2 + 0.3) * difficulty.speedMultiplier : -(Math.random() * 1.2 + 0.3) * difficulty.speedMultiplier;
+            let speedY = (Math.random() * 0.6 - 0.3) * difficulty.speedMultiplier;
+            return { x, y, width, height, speedX, speedY, changeDirection: Math.floor(Math.random() * 60) + 60 };
+        }
+
+        function spawnCrab() {
+            const size = 17.6;
+            const side = Math.random() < 0.5 ? 0 : 1;
+            let x = side === 0 ? -size : canvas.width + size;
+            let y = canvas.height - 75 - size;
+            let speedX = side === 0 ? Math.random() * 0.75 + 0.45 : -(Math.random() * 0.75 + 0.45);
+            return { x, y, width: size, height: size, speedX };
+        }
+
+        function spawnBass() {
+            if (score < 35) return null;
+            const width = 60;
+            const height = 40;
+            const difficulty = getDifficultyStage();
+            const side = Math.random() < 0.5 ? 0 : 1;
+            let x = side === 0 ? -width : canvas.width + width;
+            let y = Math.random() * (canvas.height - 75 - height);
+            let speedX = side === 0 ? (Math.random() * 2 + 0.75) * difficulty.speedMultiplier : -(Math.random() * 2 + 0.75) * difficulty.speedMultiplier;
+            let speedY = (Math.random() * 0.9 - 0.45) * difficulty.speedMultiplier;
+            return { x, y, width, height, speedX, speedY, changeDirection: Math.floor(Math.random() * 60) + 60 };
+        }
+
+        function spawnShark() {
+            if (score < 45) return null;
+            const width = 180;
+            const height = 90;
+            const difficulty = getDifficultyStage();
+            const side = Math.random() < 0.5 ? 0 : 1;
+            let x = side === 0 ? -width : canvas.width + width;
+            let y = Math.random() * (canvas.height - 75 - height);
+            let speedX = side === 0 ? (Math.random() * 2 + 2) * difficulty.speedMultiplier : -(Math.random() * 2 + 2) * difficulty.speedMultiplier;
+            let speedY = (Math.random() * 1.2 - 0.6) * difficulty.speedMultiplier;
+            if (gameStarted) {
+                warningActive = true;
+                warningTimer = 180;
+                warningX = side === 0 ? 30 : canvas.width - 30;
+                warningY = y + height / 2;
+                warningBlink = 0;
+            }
+            return { 
+                x, 
+                y, 
+                width, 
+                height, 
+                speedX, 
+                speedY, 
+                changeDirection: Math.floor(Math.random() * 60) + 60,
+                spawnDelay: 30
+            };
+        }
+
+        function spawnShinerGroup() {
+            const width = 21;
+            const height = 10;
+            const difficulty = getDifficultyStage();
+            const side = Math.random() < 0.5 ? 0 : 1;
+            let x = side === 0 ? -width * 2 : canvas.width + width * 2;
+            let y = Math.random() * (canvas.height - 75 - height);
+            let speedX = side === 0 ? difficulty.shinerSpeed : -difficulty.shinerSpeed;
+            let speedY = (Math.random() * 0.45 - 0.225);
+
+            const groupSize = Math.random();
+            let count;
+            if (groupSize < 0.33) count = 1;
+            else if (groupSize < 0.66) count = Math.floor(Math.random() * 2) + 2;
+            else count = Math.floor(Math.random() * 2) + 4;
+
+            const group = [];
+            for (let i = 0; i < count; i++) {
+                group.push({
+                    x: side === 0 ? x + (i * width * 0.8) : x - (i * width * 0.8),
+                    y: y + (Math.random() * 20 - 10),
+                    width,
+                    height,
+                    speedX,
+                    speedY,
+                    changeDirection: Math.floor(Math.random() * 60) + 30
+                });
+            }
+            return group;
+        }
+
+        function spawnGoldShiner() {
+            if (score < 30 || goldShinerList.length > 0 || (timeSurvived - lastGoldShinerEatenTime) < goldShinerCooldown) return null;
+            const width = 21;
+            const height = 10;
+            const difficulty = getDifficultyStage();
+            let x = Math.random() * (canvas.width - width);
+            let y = Math.random() * (canvas.height - 75 - height);
+            return {
+                x, y, width, height,
+                speedX: (Math.random() * 4 + 2) * (Math.random() < 0.5 ? 1 : -1),
+                speedY: (Math.random() * 4 + 2) * (Math.random() < 0.5 ? 1 : -1),
+                changeDirection: Math.floor(Math.random() * 30) + 15
+            };
+        }
+
+        function spawnJellyfish() {
+            const width = 30;
+            const height = 40;
+            const difficulty = getDifficultyStage();
+            const side = Math.random() < 0.5 ? 0 : 1;
+            let x = side === 0 ? -width : canvas.width + width;
+            let y = Math.random() * (canvas.height / 4);
+            let speedX = side === 0 ? (Math.random() * 0.5 + 0.3) * difficulty.speedMultiplier : -(Math.random() * 0.5 + 0.3) * difficulty.speedMultiplier;
+            let baseY = y;
+            return { x, y, width, height, speedX, baseY, floatTimer: 0, changeDirection: Math.floor(Math.random() * 60) + 60 };
+        }
+
+        function spawnSnapper() {
+            if (score < 15) return null;
+            const width = 40;
+            const height = 25;
+            const difficulty = getDifficultyStage();
+            const side = Math.random() < 0.5 ? 0 : 1;
+            let x = side === 0 ? -width : canvas.width + width;
+            let y = Math.random() * (canvas.height - 75 - height);
+            let speedX = side === 0 ? (Math.random() * 1.8 + 0.8) * difficulty.speedMultiplier : -(Math.random() * 1.8 + 0.8) * difficulty.speedMultiplier;
+            let speedY = (Math.random() * 0.8 - 0.4) * difficulty.speedMultiplier;
+            return { x, y, width, height, speedX, speedY, changeDirection: Math.floor(Math.random() * 60) + 60 };
+        }
+
+        function spawnBubble() {
+            const radius = Math.random() * 15 + 7;
+            return {
+                x: Math.random() * canvas.width,
+                y: canvas.height + radius,
+                radius: radius,
+                speedY: -(Math.random() * 0.75 + 0.75)
+            };
+        }
+
+        let isDragging = false;
+        joystick.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDragging = true;
+            updateJoystick(e.touches[0]);
+        });
+        joystick.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (!isDragging) return;
+            updateJoystick(e.touches[0]);
+        });
+        joystick.addEventListener('touchend', () => {
+            isDragging = false;
+            joystickX = 0;
+            joystickY = 0;
+            joystickKnob.style.left = '50%';
+            joystickKnob.style.top = '50%';
+        });
+
+        function updateJoystick(touch) {
+            const rect = joystick.getBoundingClientRect();
+            const touchX = touch.clientX - rect.left;
+            const touchY = touch.clientY - rect.top;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const dx = touchX - centerX;
+            const dy = touchY - centerY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const maxDistance = 30;
+            if (distance > maxDistance) {
+                const angle = Math.atan2(dy, dx);
+                joystickX = Math.cos(angle) * maxDistance;
+                joystickY = Math.sin(angle) * maxDistance;
+            } else {
+                joystickX = dx;
+                joystickY = dy;
+            }
+            joystickKnob.style.left = `${centerX + joystickX}px`;
+            joystickKnob.style.top = `${centerY + joystickY}px`;
+        }
+
+        function checkCollisionCircleRect(circle, rect) {
+            const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.width));
+            const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.height));
+            const dx = circle.x - closestX;
+            const dy = circle.y - closestY;
+            return (dx * dx + dy * dy) < (circle.radius * circle.radius);
+        }
+
+        function checkCollisionRectRect(obj1, obj2) {
+            return obj1.x < obj2.x + obj2.width &&
+                   obj1.x + obj1.width > obj2.x &&
+                   obj1.y < obj2.y + obj2.height &&
+                   obj1.y + obj1.height > obj2.y;
+        }
+
+        function update() {
+            if (!gameStarted || gameOver) return;
+
+            let moveX = (joystickX / 20) * minnow.speed;
+            if (isDazed) moveX = -moveX;
+            minnow.x += moveX;
+            minnow.y += (joystickY / 40) * minnow.speed;
+
+            if (joystickX === 0 && joystickY === 0) {
+                minnow.y += minnow.floatSpeed;
+            }
+
+            minnow.x = Math.max(minnow.radius, Math.min(canvas.width - minnow.radius, minnow.x));
+            minnow.y = Math.max(minnow.radius, Math.min(canvas.height - 75 - minnow.radius, minnow.y));
+
+            timeSurvived++;
+            const difficulty = getDifficultyStage();
+
+            if (isDazed) {
+                dazeTimer--;
+                if (dazeTimer <= 0) isDazed = false;
+            }
+
+            if (timeSurvived === initialDelay) {
+                sunfishList.push(spawnSunfish());
+                shinerList.push(...spawnShinerGroup());
+            } else if (timeSurvived > initialDelay) {
+                if ((timeSurvived - initialDelay) % difficulty.sunfishInterval === 0) {
+                    if (sunfishList.length + spottedSunfishList.length < maxSunfish) {
+                        if (Math.random() < 0.2 && spottedSunfishList.length < maxSpottedSunfish && timeSurvived >= 1800) {
+                            spottedSunfishList.push(spawnSpottedSunfish());
+                        } else {
+                            sunfishList.push(spawnSunfish());
+                        }
+                    }
+                }
+
+                if (score >= 15 && (timeSurvived - initialDelay) % (score >= 50 ? difficulty.sunfishInterval : difficulty.snapperInterval) === 0) {
+                    if (snapperList.length < maxSnappers) {
+                        snapperList.push(spawnSnapper());
+                    }
+                }
+
+                if (score >= 25 && timeSurvived % difficulty.garInterval === 0 && garList.length < maxGars) {
+                    const gar = spawnGar();
+                    if (gar) garList.push(gar);
+                }
+
+                if (score >= 35 && timeSurvived % difficulty.bassInterval === 0 && bassList.length < maxBass) {
+                    const bass = spawnBass();
+                    if (bass) bassList.push(bass);
+                }
+
+                if (crabList.length < maxCrabs && Math.random() < difficulty.crabChance) {
+                    crabList.push(spawnCrab());
+                }
+
+                if (score >= 45 && timeSurvived % difficulty.sharkInterval === 0 && sharkList.length < maxSharks) {
+                    const shark = spawnShark();
+                    if (shark) sharkList.push(shark);
+                }
+
+                if (timeSurvived % difficulty.shinerInterval === 0) {
+                    shinerList.push(...spawnShinerGroup());
+                }
+
+                if (score >= 30 && Math.random() < 0.005) {
+                    const goldShiner = spawnGoldShiner();
+                    if (goldShiner) goldShinerList.push(goldShiner);
+                }
+
+                if (timeSurvived % difficulty.jellyfishInterval === 0 && jellyfishList.length < maxJellyfish) {
+                    jellyfishList.push(spawnJellyfish());
+                }
+            }
+
+            if (warningActive) {
+                warningTimer--;
+                warningBlink = (warningBlink + 1) % 20;
+                if (warningTimer <= 0) warningActive = false;
+            }
+
+            sharkList.forEach((shark, sharkIndex) => {
+                if (shark.spawnDelay > 0) {
+                    shark.spawnDelay--;
+                    return;
+                }
+                shark.x += shark.speedX;
+                shark.y += shark.speedY;
+                shark.changeDirection--;
+                if (shark.changeDirection <= 0) {
+                    shark.speedY = (Math.random() * 1.2 - 0.6) * difficulty.speedMultiplier;
+                    shark.changeDirection = Math.floor(Math.random() * 60) + 60;
+                }
+                shark.y = Math.max(0, Math.min(canvas.height - 75 - shark.height, shark.y));
+                const isOffScreen = shark.x + shark.width < 0 || shark.x > canvas.width;
+                if (isOffScreen && !warningActive) {
+                    sharkList.splice(sharkIndex, 1);
+                } else if (checkCollisionCircleRect(minnow, shark)) {
+                    gameOver = true;
+                }
+                shinerList.forEach((shiner, shinerIndex) => {
+                    if (checkCollisionRectRect(shark, shiner)) {
+                        shinerList.splice(shinerIndex, 1);
+                    }
+                });
+                snapperList.forEach((snapper, snapperIndex) => {
+                    if (checkCollisionRectRect(shark, snapper)) {
+                        snapperList.splice(snapperIndex, 1);
+                    }
+                });
+            });
+
+            if (Math.random() < 0.005) {
+                bubbles.push(spawnBubble());
+            }
+
+            bubbles.forEach((bubble, index) => {
+                bubble.y += bubble.speedY;
+                if (bubble.y < -bubble.radius) {
+                    bubbles.splice(index, 1);
+                }
+            });
+
+            sunfishList.forEach((sunfish, sunIndex) => {
+                sunfish.x += sunfish.speedX;
+                sunfish.y += sunfish.speedY;
+                sunfish.changeDirection--;
+                if (sunfish.changeDirection <= 0) {
+                    sunfish.speedY = (Math.random() * 0.75 - 0.375) * difficulty.speedMultiplier;
+                    sunfish.changeDirection = Math.floor(Math.random() * 60) + 60;
+                }
+                sunfish.y = Math.max(0, Math.min(canvas.height - 75 - sunfish.height, sunfish.y));
+                const isOffScreen = sunfish.x + sunfish.width < 0 || sunfish.x > canvas.width;
+                if (isOffScreen) {
+                    sunfish.timeOffScreen++;
+                    if (sunfish.timeOffScreen > 120) {
+                        sunfishList.splice(sunIndex, 1);
+                        if (spottedSunfishList.length < maxSpottedSunfish && timeSurvived >= 1800) {
+                            spottedSunfishList.push(spawnSpottedSunfish());
+                        } else {
+                            sunfishList.push(spawnSunfish());
+                        }
+                    }
+                } else {
+                    sunfish.timeOffScreen = 0;
+                }
+                if (checkCollisionCircleRect(minnow, sunfish)) gameOver = true;
+                shinerList.forEach((shiner, shinerIndex) => {
+                    if (checkCollisionRectRect(sunfish, shiner)) {
+                        shinerList.splice(shinerIndex, 1);
+                    }
+                });
+            });
+
+            spottedSunfishList.forEach((sunfish, sunIndex) => {
+                sunfish.x += sunfish.speedX;
+                sunfish.y += sunfish.speedY;
+                sunfish.changeDirection--;
+                if (sunfish.changeDirection <= 0) {
+                    sunfish.speedX *= -1;
+                    sunfish.speedY = (Math.random() * 0.75 - 0.375) * difficulty.speedMultiplier;
+                    sunfish.changeDirection = Math.floor(Math.random() * 60) + 30;
+                }
+                sunfish.y = Math.max(0, Math.min(canvas.height - 75 - sunfish.height, sunfish.y));
+                const isOffScreen = sunfish.x + sunfish.width < 0 || sunfish.x > canvas.width;
+                if (isOffScreen) {
+                    sunfish.timeOffScreen++;
+                    if (sunfish.timeOffScreen > 120) {
+                        spottedSunfishList.splice(sunIndex, 1);
+                        if (spottedSunfishList.length < maxSpottedSunfish && timeSurvived >= 1800) {
+                            spottedSunfishList.push(spawnSpottedSunfish());
+                        } else {
+                            sunfishList.push(spawnSunfish());
+                        }
+                    }
+                } else {
+                    sunfish.timeOffScreen = 0;
+                }
+                if (checkCollisionCircleRect(minnow, sunfish)) gameOver = true;
+                shinerList.forEach((shiner, shinerIndex) => {
+                    if (checkCollisionRectRect(sunfish, shiner)) {
+                        shinerList.splice(shinerIndex, 1);
+                    }
+                });
+            });
+
+            garList.forEach((gar, garIndex) => {
+                gar.x += gar.speedX;
+                gar.y += gar.speedY;
+                gar.changeDirection--;
+                if (gar.changeDirection <= 0) {
+                    gar.speedY = (Math.random() * 0.6 - 0.3) * difficulty.speedMultiplier;
+                    gar.changeDirection = Math.floor(Math.random() * 60) + 60;
+                }
+                gar.y = Math.max(0, Math.min(canvas.height - 75 - gar.height, gar.y));
+                const isOffScreen = gar.x + gar.width < 0 || gar.x > canvas.width;
+                if (isOffScreen) {
+                    garList.splice(garIndex, 1);
+                } else if (checkCollisionCircleRect(minnow, gar)) {
+                    gameOver = true;
+                }
+                shinerList.forEach((shiner, shinerIndex) => {
+                    if (checkCollisionRectRect(gar, shiner)) {
+                        shinerList.splice(shinerIndex, 1);
+                    }
+                });
+                snapperList.forEach((snapper, snapperIndex) => {
+                    if (checkCollisionRectRect(gar, snapper)) {
+                        snapperList.splice(snapperIndex, 1);
+                    }
+                });
+            });
+
+            crabList.forEach((crab, crabIndex) => {
+                crab.x += crab.speedX;
+                const isOffScreen = crab.x + crab.width < 0 || crab.x > canvas.width;
+                if (isOffScreen) {
+                    crabList.splice(crabIndex, 1);
+                } else if (checkCollisionCircleRect(minnow, crab)) {
+                    const dx = minnow.x - (crab.x + crab.width / 2);
+                    const dy = minnow.y - (crab.y + crab.height / 2);
+                    const angle = Math.atan2(dy, dx);
+                    const bounceSpeed = minnow.speed * 10;
+                    const bounceFrames = 10;
+                    let frame = 0;
+                    function smoothBounce() {
+                        if (frame < bounceFrames) {
+                            const step = bounceSpeed / bounceFrames;
+                            minnow.x += Math.cos(angle) * step;
+                            minnow.y += Math.sin(angle) * step;
+                            minnow.x = Math.max(minnow.radius, Math.min(canvas.width - minnow.radius, minnow.x));
+                            minnow.y = Math.max(minnow.radius, Math.min(canvas.height - 75 - minnow.radius, minnow.y));
+                            frame++;
+                            requestAnimationFrame(smoothBounce);
+                        }
+                    }
+                    smoothBounce();
+                }
+                shinerList.forEach((shiner, shinerIndex) => {
+                    if (checkCollisionRectRect(crab, shiner)) {
+                        shinerList.splice(shinerIndex, 1);
+                    }
+                });
+                snapperList.forEach((snapper, snapperIndex) => {
+                    if (checkCollisionRectRect(crab, snapper)) {
+                        snapperList.splice(snapperIndex, 1);
+                    }
+                });
+            });
+
+            bassList.forEach((bass, bassIndex) => {
+                bass.x += bass.speedX;
+                bass.y += bass.speedY;
+                bass.changeDirection--;
+                if (bass.changeDirection <= 0) {
+                    bass.speedY = (Math.random() * 0.9 - 0.45) * difficulty.speedMultiplier;
+                    bass.changeDirection = Math.floor(Math.random() * 60) + 60;
+                }
+                bass.y = Math.max(0, Math.min(canvas.height - 75 - bass.height, bass.y));
+                const isOffScreen = bass.x + bass.width < 0 || bass.x > canvas.width;
+                if (isOffScreen) {
+                    bassList.splice(bassIndex, 1);
+                } else if (checkCollisionCircleRect(minnow, bass)) {
+                    gameOver = true;
+                }
+                shinerList.forEach((shiner, shinerIndex) => {
+                    if (checkCollisionRectRect(bass, shiner)) {
+                        shinerList.splice(shinerIndex, 1);
+                    }
+                });
+                snapperList.forEach((snapper, snapperIndex) => {
+                    if (checkCollisionRectRect(bass, snapper)) {
+                        snapperList.splice(snapperIndex, 1);
+                    }
+                });
+            });
+
+            shinerList.forEach((shiner, shinerIndex) => {
+                shiner.x += shiner.speedX;
+                shiner.y += shiner.speedY;
+                shiner.changeDirection--;
+                if (shiner.changeDirection <= 0) {
+                    shiner.speedY = (Math.random() * 0.45 - 0.225);
+                    shiner.changeDirection = Math.floor(Math.random() * 60) + 30;
+                }
+                shiner.y = Math.max(0, Math.min(canvas.height - 75 - shiner.height, shiner.y));
+                const isOffScreen = shiner.x + shiner.width < 0 || shiner.x > canvas.width;
+                if (isOffScreen) {
+                    shinerList.splice(shinerIndex, 1);
+                } else if (checkCollisionCircleRect(minnow, shiner)) {
+                    shinerList.splice(shinerIndex, 1);
+                    score++;
+                }
+            });
+
+            goldShinerList.forEach((shiner, shinerIndex) => {
+                shiner.x += shiner.speedX;
+                shiner.y += shiner.speedY;
+                shiner.changeDirection--;
+                if (shiner.changeDirection <= 0) {
+                    shiner.speedX = (Math.random() * 4 + 2) * (Math.random() < 0.5 ? 1 : -1);
+                    shiner.speedY = (Math.random() * 4 + 2) * (Math.random() < 0.5 ? 1 : -1);
+                    shiner.changeDirection = Math.floor(Math.random() * 30) + 15;
+                }
+                shiner.x = Math.max(0, Math.min(canvas.width - shiner.width, shiner.x));
+                shiner.y = Math.max(0, Math.min(canvas.height - 75 - shiner.height, shiner.y));
+                if (checkCollisionCircleRect(minnow, shiner)) {
+                    goldShinerList.splice(shinerIndex, 1);
+                    score += 10;
+                    lastGoldShinerEatenTime = timeSurvived;
+                }
+            });
+
+            jellyfishList.forEach((jellyfish, jellyIndex) => {
+                jellyfish.x += jellyfish.speedX;
+                jellyfish.floatTimer++;
+                jellyfish.y = jellyfish.baseY + Math.sin(jellyfish.floatTimer * 0.05) * 20;
+                jellyfish.changeDirection--;
+                if (jellyfish.changeDirection <= 0) {
+                    jellyfish.changeDirection = Math.floor(Math.random() * 60) + 60;
+                }
+                jellyfish.y = Math.max(0, Math.min(canvas.height / 4, jellyfish.y));
+                const isOffScreen = jellyfish.x + jellyfish.width < 0 || jellyfish.x > canvas.width;
+                if (isOffScreen) {
+                    jellyfishList.splice(jellyIndex, 1);
+                } else if (checkCollisionCircleRect(minnow, jellyfish) && !isDazed) {
+                    isDazed = true;
+                    dazeTimer = 5 * 60;
+                }
+                snapperList.forEach((snapper, snapperIndex) => {
+                    if (checkCollisionRectRect(jellyfish, snapper)) {
+                        snapperList.splice(snapperIndex, 1);
+                    }
+                });
+            });
+
+            snapperList.forEach((snapper, snapperIndex) => {
+                snapper.x += snapper.speedX;
+                snapper.y += snapper.speedY;
+                snapper.changeDirection--;
+                if (snapper.changeDirection <= 0) {
+                    snapper.speedY = (Math.random() * 0.8 - 0.4) * difficulty.speedMultiplier;
+                    snapper.changeDirection = Math.floor(Math.random() * 60) + 60;
+                }
+                snapper.y = Math.max(0, Math.min(canvas.height - 75 - snapper.height, snapper.y));
+                const isOffScreen = snapper.x + snapper.width < 0 || snapper.x > canvas.width;
+                if (isOffScreen) {
+                    snapperList.splice(snapperIndex, 1);
+                } else if (checkCollisionCircleRect(minnow, snapper)) {
+                    gameOver = true;
+                }
+                sunfishList.forEach((sunfish, sunIndex) => {
+                    if (checkCollisionRectRect(snapper, sunfish)) {
+                        sunfishList.splice(sunIndex, 1);
+                    }
+                });
+                spottedSunfishList.forEach((sunfish, sunIndex) => {
+                    if (checkCollisionRectRect(snapper, sunfish)) {
+                        spottedSunfishList.splice(sunIndex, 1);
+                    }
+                });
+            });
+
+            if (gameOver && score > highScore) {
+                highScore = score;
+                localStorage.setItem('highScore', highScore);
+            }
+        }
+
+        function drawEnemy(ctx, enemy, type, silhouette = false) {
+            if (silhouette) {
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.rect(enemy.x, enemy.y, enemy.width, enemy.height);
+                ctx.fill();
+                return;
+            }
+            ctx.save();
+            if (enemy.speedX < 0) {
+                ctx.scale(-1, 1);
+                ctx.translate(-canvas.width, 0);
+                enemy.x = canvas.width - enemy.x - enemy.width;
+            }
+            switch(type) {
+                case 'sunfish':
+                    ctx.fillStyle = 'orange';
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.width/2, enemy.height/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x, enemy.y + enemy.height/2);
+                    ctx.lineTo(enemy.x - 7, enemy.y + enemy.height/4);
+                    ctx.lineTo(enemy.x - 7, enemy.y + enemy.height*3/4);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 6, enemy.y + enemy.height/2 - 2, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 6, enemy.y + enemy.height/2 - 2, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                case 'spottedsunfish':
+                    ctx.fillStyle = '#2F5D8C';
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.width/2, enemy.height/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'yellow';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + 6, enemy.y + 6, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 6, enemy.y + enemy.height - 6, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#2F5D8C';
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x, enemy.y + enemy.height/2);
+                    ctx.lineTo(enemy.x - 7, enemy.y + enemy.height/4);
+                    ctx.lineTo(enemy.x - 7, enemy.y + enemy.height*3/4);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 6, enemy.y + enemy.height/2 - 2, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 6, enemy.y + enemy.height/2 - 2, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                case 'gar':
+                    ctx.fillStyle = '#4A2F1A';
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.width/2, enemy.height/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#D2B48C';
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2, enemy.y + enemy.height/2 + enemy.height/8, enemy.width/2, enemy.height/8, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#8B552F';
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x, enemy.y + enemy.height/2);
+                    ctx.lineTo(enemy.x - 15, enemy.y);
+                    ctx.lineTo(enemy.x - 15, enemy.y + enemy.height);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 15, enemy.y + enemy.height/2, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 15, enemy.y + enemy.height/2, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                case 'crab':
+                    ctx.fillStyle = 'red';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.width/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'black';
+                    ctx.fillRect(enemy.x + 3, enemy.y - 3, 3, 3);
+                    ctx.fillRect(enemy.x + enemy.width - 6, enemy.y - 3, 3, 3);
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(enemy.x - 7, enemy.y + 3, 7, enemy.height - 6);
+                    ctx.fillRect(enemy.x + enemy.width, enemy.y + 3, 7, enemy.height - 6);
+                    break;
+                case 'bass':
+                    ctx.fillStyle = '#2F4F2F';
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.width/2, enemy.height/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#90EE90';
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2, enemy.y + enemy.height/2 + enemy.height/8, enemy.width/2, enemy.height/8, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#90EE90';
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x, enemy.y + enemy.height/2);
+                    ctx.lineTo(enemy.x - 15, enemy.y + enemy.height/4);
+                    ctx.lineTo(enemy.x - 15, enemy.y + enemy.height*3/4);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 9, enemy.y + enemy.height/2 - 2, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 9, enemy.y + enemy.height/2 - 2, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                case 'shark':
+                    ctx.fillStyle = '#808080'; // Grey color
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.width/2, enemy.height/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Dorsal fin (reduced size)
+                    ctx.fillStyle = '#808080';
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x + enemy.width * 0.5, enemy.y);
+                    ctx.lineTo(enemy.x + enemy.width * 0.6, enemy.y - enemy.height * 0.2); // Reduced from 0.4
+                    ctx.lineTo(enemy.x + enemy.width * 0.4, enemy.y);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Pectoral fin (reduced size)
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x + enemy.width * 0.3, enemy.y + enemy.height * 0.6);
+                    ctx.lineTo(enemy.x + enemy.width * 0.4, enemy.y + enemy.height * 0.9); // Reduced from 1.2
+                    ctx.lineTo(enemy.x + enemy.width * 0.2, enemy.y + enemy.height * 0.6);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Tail fin (reduced size)
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x + enemy.width, enemy.y + enemy.height * 0.5);
+                    ctx.lineTo(enemy.x + enemy.width * 1.15, enemy.y + enemy.height * 0.3); // Reduced from 1.3 and 0.2
+                    ctx.lineTo(enemy.x + enemy.width * 1.15, enemy.y + enemy.height * 0.7); // Reduced from 1.3 and 0.8
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Eyes (position adjusted for direction)
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width * 0.2, enemy.y + enemy.height * 0.3, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width * 0.2, enemy.y + enemy.height * 0.3, 3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Teeth (position adjusted for direction)
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x + enemy.width * 0.1, enemy.y + enemy.height * 0.5);
+                    ctx.lineTo(enemy.x + enemy.width * 0.15, enemy.y + enemy.height * 0.7);
+                    ctx.lineTo(enemy.x + enemy.width * 0.2, enemy.y + enemy.height * 0.5);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x + enemy.width * 0.2, enemy.y + enemy.height * 0.5);
+                    ctx.lineTo(enemy.x + enemy.width * 0.25, enemy.y + enemy.height * 0.7);
+                    ctx.lineTo(enemy.x + enemy.width * 0.3, enemy.y + enemy.height * 0.5);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+                case 'shiner':
+                    ctx.fillStyle = '#A9A9A9';
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.width/2, enemy.height/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#808080';
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x, enemy.y + enemy.height/2);
+                    ctx.lineTo(enemy.x - 5, enemy.y);
+                    ctx.lineTo(enemy.x - 5, enemy.y + enemy.height);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 4, enemy.y + enemy.height/2 - 1, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 4, enemy.y + enemy.height/2 - 1, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                case 'goldshiner':
+                    ctx.fillStyle = '#FFD700';
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.width/2, enemy.height/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#DAA520';
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x, enemy.y + enemy.height/2);
+                    ctx.lineTo(enemy.x - 5, enemy.y);
+                    ctx.lineTo(enemy.x - 5, enemy.y + enemy.height);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 4, enemy.y + enemy.height/2 - 1, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 4, enemy.y + enemy.height/2 - 1, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                case 'jellyfish':
+                    ctx.fillStyle = 'rgba(255, 105, 180, 0.7)';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width/2, enemy.y + enemy.height/4, enemy.width/2, 0, Math.PI, true);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(255, 105, 180, 0.9)';
+                    ctx.lineWidth = 2;
+                    for (let i = 0; i < 5; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(enemy.x + (i + 1) * enemy.width/6, enemy.y + enemy.height/4);
+                        ctx.lineTo(enemy.x + (i + 1) * enemy.width/6, enemy.y + enemy.height);
+                        ctx.stroke();
+                    }
+                    break;
+                case 'snapper':
+                    ctx.fillStyle = 'red';
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.width/2, enemy.height/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#8B0000';
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x, enemy.y + enemy.height/2);
+                    ctx.lineTo(enemy.x - 10, enemy.y + enemy.height/4);
+                    ctx.lineTo(enemy.x - 10, enemy.y + enemy.height*3/4);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 8, enemy.y + enemy.height/2 - 2, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + enemy.width - 8, enemy.y + enemy.height/2 - 2, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+            }
+            if (enemy.speedX < 0) enemy.x = canvas.width - enemy.x - enemy.width;
+            ctx.restore();
+        }
+
+        function draw() {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#3A7DAF');
+            gradient.addColorStop(1, '#5A9BD4');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            bubbles.forEach(bubble => {
+                ctx.beginPath();
+                ctx.arc(bubble.x, bubble.y, bubble.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            ctx.fillStyle = '#F4A460';
+            ctx.fillRect(0, canvas.height - 75, canvas.width, 75);
+
+            const seaweedHeights = [140, 130, 150, 120, 135, 145, 125];
+            const seaweedColors = ['#006400', '#228B22', '#006400', '#228B22', '#006400', '#228B22', '#006400'];
+            const seaweedPositions = [20, 70, 120, 170, 220, 270, 320];
+            for (let i = 0; i < 7; i++) {
+                ctx.fillStyle = seaweedColors[i];
+                const x = seaweedPositions[i];
+                const y = canvas.height - 75;
+                const height = seaweedHeights[i];
+                ctx.fillRect(x, y - height, 15, height);
+            }
+
+            ctx.save();
+            if (joystickX < 0) {
+                ctx.scale(-1, 1);
+                ctx.translate(-canvas.width, 0);
+                minnow.x = canvas.width - minnow.x;
+            }
+            ctx.fillStyle = 'blue';
+            ctx.beginPath();
+            ctx.ellipse(minnow.x, minnow.y, minnow.radius, minnow.radius * 0.6, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(minnow.x - minnow.radius, minnow.y);
+            ctx.lineTo(minnow.x - minnow.radius * 1.8, minnow.y - minnow.radius * 0.6);
+            ctx.lineTo(minnow.x - minnow.radius * 1.8, minnow.y + minnow.radius * 0.6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(minnow.x + 6, minnow.y - 3, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(minnow.x + 6, minnow.y - 3, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            if (joystickX < 0) minnow.x = canvas.width - minnow.x;
+            ctx.restore();
+
+            sunfishList.forEach(sunfish => drawEnemy(ctx, sunfish, 'sunfish'));
+            spottedSunfishList.forEach(sunfish => drawEnemy(ctx, sunfish, 'spottedsunfish'));
+            garList.forEach(gar => drawEnemy(ctx, gar, 'gar'));
+            crabList.forEach(crab => drawEnemy(ctx, crab, 'crab'));
+            bassList.forEach(bass => drawEnemy(ctx, bass, 'bass'));
+            sharkList.forEach(shark => {
+                if (shark.spawnDelay > 0) return;
+                drawEnemy(ctx, shark, 'shark');
+            });
+            shinerList.forEach(shiner => drawEnemy(ctx, shiner, 'shiner'));
+            goldShinerList.forEach(shiner => drawEnemy(ctx, shiner, 'goldshiner'));
+            jellyfishList.forEach(jellyfish => drawEnemy(ctx, jellyfish, 'jellyfish'));
+            snapperList.forEach(snapper => drawEnemy(ctx, snapper, 'snapper'));
+
+            if (warningActive && warningBlink < 10) {
+                ctx.fillStyle = 'yellow';
+                ctx.beginPath();
+                ctx.moveTo(warningX, warningY - 22);
+                ctx.lineTo(warningX - 22, warningY + 22);
+                ctx.lineTo(warningX + 22, warningY + 22);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+
+            if (gameStarted) {
+                ctx.fillStyle = 'black';
+                ctx.font = '20px Arial';
+                ctx.fillText(`Score: ${score}`, 10, 25);
+                if (isDazed) {
+                    ctx.fillStyle = 'yellow';
+                    ctx.beginPath();
+                    ctx.moveTo(110, 15);
+                    ctx.lineTo(120, 25);
+                    ctx.lineTo(130, 15);
+                    ctx.lineTo(120, 5);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+
+            if (gameOver) {
+                ctx.fillStyle = 'red';
+                ctx.font = '30px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Game Over!', canvas.width/2, canvas.height/2 - 60);
+                ctx.font = '20px Arial';
+                ctx.fillText(`Score: ${score}`, canvas.width/2, canvas.height/2 + 20);
+                ctx.fillText(`High Score: ${highScore}`, canvas.width/2, canvas.height/2 + 50);
+                ctx.fillStyle = '#D2B48C';
+                ctx.fillRect(canvas.width/2 - 90, canvas.height/2 + 70, 180, 40);
+                ctx.fillStyle = 'black';
+                ctx.fillText('Back to Main Menu', canvas.width/2, canvas.height/2 + 95);
+                ctx.textAlign = 'left';
+            }
+        }
+
+        const enemies = [
+            { name: 'Bait Fish', spawn: () => ({x: 60, y: 30, width: 24, height: 14.4, speedX: 1}), size: 24 * 14.4 },
+            { name: 'Shiner', spawn: () => spawnShinerGroup()[0], size: 21 * 10 },
+            { name: 'Gold Shiner', spawn: spawnGoldShiner, size: 21 * 10 },
+            { name: 'Crab', spawn: spawnCrab, size: 17.6 * 17.6 },
+            { name: 'Sunfish', spawn: spawnSunfish, size: 30 * 20 },
+            { name: 'Spotted Sunfish', spawn: spawnSpottedSunfish, size: 30 * 20 },
+            { name: 'Snapper', spawn: spawnSnapper, size: 40 * 25 },
+            { name: 'Jellyfish', spawn: spawnJellyfish, size: 30 * 40 },
+            { name: 'Bass', spawn: spawnBass, size: 60 * 40 },
+            { name: 'Gar', spawn: spawnGar, size: 96 * 24 },
+            { name: 'Shark', spawn: spawnShark, size: 180 * 90 }
+        ].sort((a, b) => a.size - b.size);
+
+        let seenEnemies = new Set(JSON.parse(localStorage.getItem('seenEnemies') || '[]'));
+        seenEnemies.add('Bait Fish');
+
+        function saveSeenEnemies() {
+            localStorage.setItem('seenEnemies', JSON.stringify([...seenEnemies]));
+        }
+
+        function populateLogBook() {
+            logBookEntries.innerHTML = '';
+            enemies.forEach(enemy => {
+                const entry = document.createElement('div');
+                const canvas = document.createElement('canvas');
+                canvas.width = 120;
+                canvas.height = 60;
+                const enemyCtx = canvas.getContext('2d');
+                let enemyObj = enemy.spawn();
+                const isSeen = seenEnemies.has(enemy.name);
+                
+                if (!enemyObj || !isSeen) {
+                    const sizes = {
+                        'Bait Fish': { width: 24, height: 14.4 },
+                        'Shiner': { width: 21, height: 10 },
+                        'Gold Shiner': { width: 21, height: 10 },
+                        'Crab': { width: 17.6, height: 17.6 },
+                        'Sunfish': { width: 30, height: 20 },
+                        'Spotted Sunfish': { width: 30, height: 20 },
+                        'Snapper': { width: 40, height: 25 },
+                        'Jellyfish': { width: 30, height: 40 },
+                        'Bass': { width: 60, height: 40 },
+                        'Gar': { width: 96, height: 24 },
+                        'Shark': { width: 120, height: 60 }  // Adjusted for logbook
+                    };
+                    const size = sizes[enemy.name];
+                    enemyObj = { 
+                        x: 60 - size.width/2, 
+                        y: 30 - size.height/2, 
+                        width: size.width, 
+                        height: size.height, 
+                        speedX: 1 
+                    };
+                }
+                
+                enemyObj.x = 60 - enemyObj.width / 2;
+                enemyObj.y = 30 - enemyObj.height / 2;
+                enemyObj.speedX = 1;
+                
+                if (enemy.name === 'Bait Fish') {
+                    enemyCtx.fillStyle = 'blue';
+                    enemyCtx.beginPath();
+                    enemyCtx.ellipse(enemyObj.x, enemyObj.y, enemyObj.width/2, enemyObj.height/2, 0, 0, Math.PI * 2);
+                    enemyCtx.fill();
+                    enemyCtx.beginPath();
+                    enemyCtx.moveTo(enemyObj.x - enemyObj.width/2, enemyObj.y);
+                    enemyCtx.lineTo(enemyObj.x - enemyObj.width * 0.9, enemyObj.y - enemyObj.height/2);
+                    enemyCtx.lineTo(enemyObj.x - enemyObj.width * 0.9, enemyObj.y + enemyObj.height/2);
+                    enemyCtx.closePath();
+                    enemyCtx.fill();
+                    enemyCtx.fillStyle = 'white';
+                    enemyCtx.beginPath();
+                    enemyCtx.arc(enemyObj.x + 6, enemyObj.y - 3, 3, 0, Math.PI * 2);
+                    enemyCtx.fill();
+                    enemyCtx.fillStyle = 'black';
+                    enemyCtx.beginPath();
+                    enemyCtx.arc(enemyObj.x + 6, enemyObj.y - 3, 1.5, 0, Math.PI * 2);
+                    enemyCtx.fill();
+                } else {
+                    drawEnemy(enemyCtx, enemyObj, enemy.name.toLowerCase().replace(' ', ''), !isSeen);
+                }
+
+                const name = document.createElement('span');
+                name.textContent = isSeen ? enemy.name : '???';
+
+                entry.appendChild(canvas);
+                entry.appendChild(name);
+                logBookEntries.appendChild(entry);
+            });
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        startButton.addEventListener('click', () => {
+            gameStarted = true;
+            startScreen.style.display = 'none';
+            joystick.style.display = 'block';
+        });
+
+        bookButton.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            logBookScreen.style.display = 'block';
+            populateLogBook();
+        });
+
+        helpButton.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            howToPlayScreen.style.display = 'block';
+        });
+
+        backButton.addEventListener('click', () => {
+            logBookScreen.style.display = 'none';
+            startScreen.style.display = 'flex';
+        });
+
+        howToPlayBackButton.addEventListener('click', () => {
+            howToPlayScreen.style.display = 'none';
+            startScreen.style.display = 'flex';
+        });
+
+        resetLogButton.addEventListener('click', () => {
+            seenEnemies = new Set(['Bait Fish']);
+            saveSeenEnemies();
+            populateLogBook();
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            const touchX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
+            const touchY = e.touches[0].clientY - canvas.getBoundingClientRect().top;
+            if (gameOver) {
+                if (touchX >= canvas.width/2 - 90 && touchX <= canvas.width/2 + 90 &&
+                    touchY >= canvas.height/2 + 70 && touchY <= canvas.height/2 + 110) {
+                    gameOver = false;
+                    gameStarted = false;
+                    startScreen.style.display = 'flex';
+                    joystick.style.display = 'none';
+                    minnow.x = 180;
+                    minnow.y = 320;
+                    sunfishList = [];
+                    spottedSunfishList = [];
+                    garList = [];
+                    crabList = [];
+                    bassList = [];
+                    sharkList = [];
+                    shinerList = [];
+                    goldShinerList = [];
+                    jellyfishList = [];
+                    snapperList = [];
+                    bubbles = [];
+                    timeSurvived = 0;
+                    score = 0;
+                    isDazed = false;
+                    dazeTimer = 0;
+                    lastGoldShinerEatenTime = -65 * 60;
+                    warningActive = false;
+                } else {
+                    gameOver = false;
+                    minnow.x = 180;
+                    minnow.y = 320;
+                    sunfishList = [];
+                    spottedSunfishList = [];
+                    garList = [];
+                    crabList = [];
+                    bassList = [];
+                    sharkList = [];
+                    shinerList = [];
+                    goldShinerList = [];
+                    jellyfishList = [];
+                    snapperList = [];
+                    bubbles = [];
+                    timeSurvived = 0;
+                    score = 0;
+                    isDazed = false;
+                    dazeTimer = 0;
+                    lastGoldShinerEatenTime = -65 * 60;
+                    gameStarted = true;
+                    joystick.style.display = 'block';
+                    warningActive = false;
+                }
+            }
+        });
+
+        setInterval(() => {
+            if (gameStarted && !gameOver) {
+                if (sunfishList.some(s => s.x >= 0 && s.x <= canvas.width)) seenEnemies.add('Sunfish');
+                if (spottedSunfishList.some(s => s.x >= 0 && s.x <= canvas.width)) seenEnemies.add('Spotted Sunfish');
+                if (garList.some(g => g.x >= 0 && g.x <= canvas.width)) seenEnemies.add('Gar');
+                if (crabList.some(c => c.x >= 0 && c.x <= canvas.width)) seenEnemies.add('Crab');
+                if (bassList.some(b => b.x >= 0 && b.x <= canvas.width)) seenEnemies.add('Bass');
+                if (sharkList.some(s => s.x >= 0 && s.x <= canvas.width && s.spawnDelay <= 0)) seenEnemies.add('Shark');
+                if (shinerList.some(s => s.x >= 0 && s.x <= canvas.width)) seenEnemies.add('Shiner');
+                if (goldShinerList.some(s => s.x >= 0 && s.x <= canvas.width)) seenEnemies.add('Gold Shiner');
+                if (jellyfishList.some(j => j.x >= 0 && j.x <= canvas.width)) seenEnemies.add('Jellyfish');
+                if (snapperList.some(s => s.x >= 0 && s.x <= canvas.width)) seenEnemies.add('Snapper');
+                saveSeenEnemies();
+            }
+        }, 1000);
+
+        gameLoop();
+    </script>
+</body>
+</html>
